@@ -24,7 +24,9 @@ private:
 
     void UpdateEnumeration();
 
+    // Martin algorithm step-by-step management.
     void UpdateMartinAlgorithm();
+    bool _showingState = false;
 
     void UpdateRandomGeneration();
 
