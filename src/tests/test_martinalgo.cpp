@@ -8,10 +8,10 @@
 
 int main() {
     // https://oeis.org/A001168 (except for size 0, which do not matter)
-    constexpr int expected[] = { 0, 1, 2, 6, 19, 63, 216, 760, 2725, 9910, 36446, 135268 };
+    constexpr int expected[] = { 0, 1, 2, 6, 19, 63, 216, 760, 2725, 9910, 36446, 135268, 505861, 1903890, 7204874, 27394666, 104592937, };
     constexpr int max_size = std::size(expected)-1;
     
-    int result[max_size] = { 0 };
+    int result[max_size+1] = { 0 };
 
     MartinAlgo martin;
     martin.Init(max_size);
@@ -30,9 +30,12 @@ int main() {
         }
     }
 
+    int total = 0;
     for (int i = 1; i <= max_size; ++i) {
-        std::printf("Found %d figures of size %d (expected %d)\n", result[i], i, expected[i]);
+        std::printf("Found %10d figures of size %3d (expected %10d)\n", result[i], i, expected[i]);
+        total += result[i];
     }
+    std::printf("Generated %d figures in total.\n", total);
 
     return 0;
 }
