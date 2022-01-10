@@ -25,6 +25,7 @@ Application::Application() {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(INIT_WIDTH, INIT_HEIGHT, WINDOW_TITLE);
     SetTargetFPS(20); // This is not a real-time app: low framerate is sufficient.
+    _martin.Init();
 }
 
 Application::~Application() {
@@ -96,29 +97,57 @@ void Application::UpdateEnumeration() {
 char buffer[200];
 
 void Application::UpdateMartinAlgorithm() {
-    constexpr int BUTTON_SIZE = 30;
-    constexpr int BUTTON_MARGIN = 20;
-    constexpr int BUTTON_YPOS = TAB_HEIGHT + BUTTON_MARGIN;
+    constexpr float BUTTON_SIZE = 40;
+    constexpr float BUTTON_MARGIN = 20;
+    constexpr float BUTTON_YPOS = TAB_HEIGHT + BUTTON_MARGIN;
+    constexpr float GRID_YPOS = BUTTON_YPOS + BUTTON_SIZE + BUTTON_MARGIN;
+    constexpr float CELL_FONT_SIZE = 20;
+    constexpr float CELL_SIZE = 50;
     
-    constexpr int CELL_SIZE = 50;
-    constexpr int MAX_FIGURE_SIZE = 10;
-    constexpr int GRID_WIDTH = (MAX_FIGURE_SIZE * 2 + 1) * CELL_SIZE;
-    constexpr int GRID_HEIGHT = (MAX_FIGURE_SIZE + 1) * CELL_SIZE;
-    constexpr int GRID_YPOS = BUTTON_YPOS + BUTTON_SIZE + BUTTON_MARGIN;
+    int MAX_FIGURE_SIZE = std::max(10, _maxLevel);
+    float GRID_WIDTH = (MAX_FIGURE_SIZE * 2 + 1) * CELL_SIZE;
+    float GRID_HEIGHT = (MAX_FIGURE_SIZE + 1) * CELL_SIZE;
 
     Rectangle grid_location = { (_width - GRID_WIDTH) / 2, GRID_YPOS, GRID_WIDTH, GRID_HEIGHT };
     GuiSetStyle(DEFAULT, LINE_COLOR, ColorToInt(BLACK));
 
+    // Display candidates state
+    for (int i = 0; i < _martin.candidates.size(); ++i) {
+        // Calculate on-screen coordinates.
+        Candidate& candidate = _martin.candidates[i];
+        auto [x,y] = candidate.coordinate;
+        int true_x = x + MAX_FIGURE_SIZE, true_y = MAX_FIGURE_SIZE - y;
+        Rectangle cell = { grid_location.x + true_x * CELL_SIZE, grid_location.y + true_y * CELL_SIZE, CELL_SIZE, CELL_SIZE };
+        // Background color.
+        switch (candidate.s) {
+        case Candidate::Free: DrawRectangleRec(cell, ColorAlpha(YELLOW, 0.3)); break;
+        case Candidate::Chosen: DrawRectangleRec(cell, ColorAlpha(BLUE, 0.5)); break;
+        case Candidate::Prohibited: DrawRectangleRec(cell, ColorAlpha(RED, 0.3)); break;
+        }
+        // Text, which must be centered.
+        char const* text;
+        if (_showingState) {
+            if (candidate.s == Candidate::Free)
+                text = "F";
+            else
+                text = TextFormat("%c %d", Candidate::StateLetter[candidate.s], candidate.i);
+        } else {
+            text = TextFormat("%d", i);
+        }
+        int text_width = MeasureText(text, CELL_FONT_SIZE);
+        DrawText(text, cell.x + (CELL_SIZE - text_width) / 2, cell.y + (CELL_SIZE - CELL_FONT_SIZE)/2, CELL_FONT_SIZE, BLACK);
+    }
+    // Display grid
     Vector2 cell_pos = GuiGrid(grid_location, CELL_SIZE, 1);
     // Gray out cell under mouse
     if (cell_pos.x >= 0 && cell_pos.y >= 0) {
         Vector2 pos_px = { grid_location.x + cell_pos.x * CELL_SIZE, grid_location.y + cell_pos.y * CELL_SIZE };
-        DrawRectangle(pos_px.x, pos_px.y, CELL_SIZE, CELL_SIZE, LIGHTGRAY);
+        DrawRectangle(pos_px.x, pos_px.y, CELL_SIZE, CELL_SIZE, ColorAlpha(BLACK, 0.3));
         DrawRectangleLines(pos_px.x, pos_px.y, CELL_SIZE+1, CELL_SIZE+1, BLACK);
     }
 
-    float SHOW_BUTTON_WIDTH = (grid_location.width - 2 * BUTTON_MARGIN) / 2;
-
+    // Display buttons
+    float SHOW_BUTTON_WIDTH = (grid_location.width - 4 * BUTTON_MARGIN)  * 0.33333f;
     Rectangle button_location = { grid_location.x, BUTTON_YPOS, SHOW_BUTTON_WIDTH, BUTTON_SIZE };
     if (_showingState) {
         if (GuiButton(button_location, "Show cells ordering")) {
@@ -131,9 +160,35 @@ void Application::UpdateMartinAlgorithm() {
     }
     button_location.x += button_location.width + BUTTON_MARGIN;
     button_location.width = SHOW_BUTTON_WIDTH / 2;
-    if (GuiButton(button_location, "Advance"));
+    if (GuiButton(button_location, "Advance")) {
+        if (_martin.level == _maxLevel || _martin.next_free == _martin.candidates.size()) {
+            _martin.Pop();
+        } else {
+            Coordinate coord = _martin.Push(_martin.next_free);
+            _martin.AddCandidates4(coord);
+        }
+    }
     button_location.x += button_location.width + BUTTON_MARGIN;
-    if (GuiButton(button_location, "Reset"));
+    if (GuiButton(button_location, "Next figure")) {
+        // Same as "advance", but until level = _maxLevel or if no more push allowed
+        do {
+            if (_martin.level >= _maxLevel || _martin.next_free == _martin.candidates.size()) {
+                if (!_martin.Pop()) // Cannot pop, out of figures
+                    break;
+            } else {
+                Coordinate coord = _martin.Push(_martin.next_free);
+                _martin.AddCandidates4(coord);
+            }
+        } while (_martin.level != _maxLevel);
+    }
+    button_location.x += button_location.width + BUTTON_MARGIN;
+    if (GuiButton(button_location, "Reset")) {
+        _martin.Init(MAX_FIGURE_SIZE);
+    }
+    constexpr float SPINNER_MARGIN = 80;
+    button_location.x += button_location.width + BUTTON_MARGIN + SPINNER_MARGIN;
+    button_location.width -= SPINNER_MARGIN;
+    GuiSpinner(button_location, "Level", &_maxLevel, 1, 20, false);
 
 
 }

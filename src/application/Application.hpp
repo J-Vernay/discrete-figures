@@ -1,6 +1,7 @@
 #pragma once
 
 #include <raylib.h>
+#include "../MartinAlgo.hpp"
 
 class Application {
 public:
@@ -26,7 +27,9 @@ private:
 
     // Martin algorithm step-by-step management.
     void UpdateMartinAlgorithm();
-    bool _showingState = false;
+    MartinAlgo _martin = {};
+    bool _showingState = true;
+    int _maxLevel = 8;
 
     void UpdateRandomGeneration();
 
