@@ -98,11 +98,11 @@ char buffer[200];
 
 void Application::UpdateMartinAlgorithm() {
     constexpr float BUTTON_SIZE = 40;
-    constexpr float BUTTON_MARGIN = 20;
+    constexpr float BUTTON_MARGIN = 10;
     constexpr float BUTTON_YPOS = TAB_HEIGHT + BUTTON_MARGIN;
     constexpr float GRID_YPOS = BUTTON_YPOS + BUTTON_SIZE + BUTTON_MARGIN;
     constexpr float CELL_FONT_SIZE = 20;
-    constexpr float CELL_SIZE = 50;
+    constexpr float CELL_SIZE = 55;
     
     int MAX_FIGURE_SIZE = std::max(10, _maxLevel);
     float GRID_WIDTH = (MAX_FIGURE_SIZE * 2 + 1) * CELL_SIZE;
@@ -147,7 +147,7 @@ void Application::UpdateMartinAlgorithm() {
     }
 
     // Display buttons
-    float SHOW_BUTTON_WIDTH = (grid_location.width - 4 * BUTTON_MARGIN)  * 0.33333f;
+    float SHOW_BUTTON_WIDTH = (grid_location.width - 5 * BUTTON_MARGIN)  * 2/7.f;
     Rectangle button_location = { grid_location.x, BUTTON_YPOS, SHOW_BUTTON_WIDTH, BUTTON_SIZE };
     if (_showingState) {
         if (GuiButton(button_location, "Show cells ordering")) {
@@ -177,7 +177,13 @@ void Application::UpdateMartinAlgorithm() {
                     break;
             } else {
                 Coordinate coord = _martin.Push(_martin.next_free);
-                _martin.AddCandidates4(coord);
+                if (_whiteconnexity == 4 && _martin.WouldBreakWhiteLocal4(coord)
+                        || _whiteconnexity == 8 && _martin.WouldBreakWhiteLocal8(coord)) {
+                    _martin.Pop(); // Skip this figure.
+                }
+                else {
+                    _martin.AddCandidates4(coord);
+                }
             }
         } while (_martin.level != _maxLevel);
     }
@@ -189,6 +195,12 @@ void Application::UpdateMartinAlgorithm() {
     button_location.x += button_location.width + BUTTON_MARGIN + SPINNER_MARGIN;
     button_location.width -= SPINNER_MARGIN;
     GuiSpinner(button_location, "Level", &_maxLevel, 1, 20, false);
+    button_location.x += button_location.width + BUTTON_MARGIN + SPINNER_MARGIN;
+    GuiSpinner(button_location, "W", &_whiteconnexity, 0, 8, false);
+    if (_whiteconnexity == 1) _whiteconnexity = 4;
+    if (_whiteconnexity == 3) _whiteconnexity = 0;
+    if (_whiteconnexity == 5) _whiteconnexity = 8;
+    if (_whiteconnexity == 7) _whiteconnexity = 4;
 
 
 }

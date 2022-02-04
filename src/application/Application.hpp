@@ -30,6 +30,7 @@ private:
     MartinAlgo _martin = {};
     bool _showingState = true;
     int _maxLevel = 8;
+    int _whiteconnexity = 0;
 
     void UpdateRandomGeneration();
 

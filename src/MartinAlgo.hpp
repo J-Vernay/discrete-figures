@@ -207,4 +207,51 @@ struct MartinAlgo {
         next_free = last_chosen + 1;
         return true;
     }
+
+    // Easy access to candidate given its coordinate.
+    bool IsChosen(Coordinate c) const {
+        auto it = candidate_indices.find(c);
+        if (it == candidate_indices.end())
+            return false;
+        return candidates[it->second].s == Candidate::Chosen;
+    }
+
+    // Check whether the local white connexity is respected after the inclusion of 'c'.
+    bool WouldBreakWhiteLocal4(Coordinate c) const {
+        bool A = IsChosen(c.apply(DirNW)), B = IsChosen(c.apply(DirN)), C = IsChosen(c.apply(DirNE)),
+             D = IsChosen(c.apply(DirW)),  F = IsChosen(c.apply(DirE)),
+             G = IsChosen(c.apply(DirSW)), H = IsChosen(c.apply(DirS)), I = IsChosen(c.apply(DirSE));
+
+        // Given the following situation:
+        // A B C
+        // D c F  (c is the given center)
+        // G H I
+        // For each pair (F,C), (C,B), ..., (I,F), we check if it is equal to (Chosen, NotChosen).
+        // By counting the number of such pairs, we know the number of white parts after the insertion
+        // of 'c'. If it is 0 or 1, there are no white breakage. Else, we would have multiple parts.
+        // There is a special case for the corners A, C, G, I:
+        // if A is white and B and D are chosen, it means A is already connected "outside" the local context.
+        // In this case, we are not breaking "more" the local connexity, so such cases should be removed.
+
+        int count = (F && !C) + (C && !B) + (B && !A) + (A && !D) + (D && !G) + (G && !H) + (H && !I) + (I && !F)
+            - (!A && B && D) - (!C && B && F) - (!G && D && H) - (!I && F && H);
+        
+        return count >= 2;
+    }
+
+    bool WouldBreakWhiteLocal8(Coordinate c) const {
+        bool A = IsChosen(c.apply(DirNW)), B = IsChosen(c.apply(DirN)), C = IsChosen(c.apply(DirNE)),
+             D = IsChosen(c.apply(DirW)),  F = IsChosen(c.apply(DirE)),
+             G = IsChosen(c.apply(DirSW)), H = IsChosen(c.apply(DirS)), I = IsChosen(c.apply(DirSE));
+        // This is the simple principle as WouldBreakWhiteLocal4(), 
+        // except the handling of corners: the special case "!A && B && D" is not possible,
+        // since the corners are 8-connected to the center.
+        // However, the case "A && !B && !D" should not count, as B and D are still connected.
+
+        int count = (F && !C) + (C && !B) + (B && !A) + (A && !D) + (D && !G) + (G && !H) + (H && !I) + (I && !F)
+            - (A && !B && !D) - (C && !B && !F) - (G && !D && !H) - (I && !F && !H);
+        
+        return count >= 2;
+    }
 };
+
