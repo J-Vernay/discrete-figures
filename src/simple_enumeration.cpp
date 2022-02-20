@@ -48,12 +48,12 @@ int main(int argc, char** argv) {
                 break;
         } else {
             Coordinate coord = martin.Push(martin.next_free);
-            ++result[martin.level];
             if (W == 4 && martin.WouldBreakWhiteLocal4(coord)
                     || W == 8 && martin.WouldBreakWhiteLocal8(coord)) {
                 martin.Pop(); // Skip this figure.
             }
             else {
+                ++result[martin.level];
                 if (B == 4)
                     martin.AddCandidates4(coord);
                 else

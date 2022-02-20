@@ -22,6 +22,9 @@ enum Direction {
 struct Coordinate {
     std::int16_t x;
     std::int16_t y;
+
+    Coordinate(int x_, int y_) : x(x_), y(y_) {}
+
     // We can apply a direction to obtain a new coordinate.
     Coordinate apply(Direction d) const noexcept {
         switch (d) {
