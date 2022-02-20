@@ -46,6 +46,29 @@ NOTE: "expected" is the OEIS data, lacking white-connexity. "0" is used when unk
               8,            2684,            2725
 ```
 
+You can also visualise which figures are rejected due to the white-connexity.
+The code is based on the optimized version, so arguments are passed at compile-time too.
+```
+$ g++ src/white_rejected.cpp -o white_rejected -O3 -DN=7 -DB=4 -DW=4
+$ ./white_rejected
+1. (size=7)
+       XX      
+       X X     
+       XXX     
+2. (size=7)
+        XX     
+       X X     
+       XXX     
+3. (size=7)
+       XXX     
+       X X     
+       XX      
+4. (size=7)
+      XXX      
+      X X      
+       XX      
+Total 4-black-connected figures (size <= 7) due to 4-white-connexity: 4
+```
 If you want to build the application used to show a graphical representation of the algorithm steps,
 you must install `raylib` and its dependencies, according to the instructions specified on their official wiki:
 [Windows](https://github.com/raysan5/raylib/wiki/Working-on-Windows), [Linux](https://github.com/raysan5/raylib/wiki/Working-on-GNU-Linux).

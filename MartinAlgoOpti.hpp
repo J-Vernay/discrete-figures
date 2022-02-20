@@ -240,8 +240,8 @@ struct MartinAlgoOpti {
     /// Overrides "repr" with the figure string representation:
     /// 'X' for chosen cells and ' ' for others, '\n' for line delimiters.
     /// The string is null-terminated. "repr" must have at least ReprSize bytes.
-    static constexpr unsigned ReprSize = (WIDTH + 1) * HEIGHT + 1;
-    void GetRepr(char const* msg, char* repr) const {
+    static constexpr unsigned REPR_SIZE = (WIDTH + 1) * HEIGHT + 1;
+    void GetRepr(char* repr) const {
         int i = 0;
         for (int y = HEIGHT - 1; y >= 0; --y) {
             for (int x = 0; x < WIDTH; ++x)

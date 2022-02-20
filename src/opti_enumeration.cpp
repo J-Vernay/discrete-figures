@@ -20,7 +20,7 @@ constexpr int B_ = 4;
 constexpr int W_ = W;
 #undef W
 #else
-constexpr int W_ = 0;
+constexpr int W_ = 4;
 #endif
 
 #include "../MartinAlgoOpti.hpp"
