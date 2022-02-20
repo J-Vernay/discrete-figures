@@ -45,10 +45,7 @@ void Application::Update() {
     ClearBackground(RAYWHITE);
 
     switch (_tabIndex) {
-    case 0: UpdateEnumeration(); break;
-    case 1: UpdateMartinAlgorithm(); break;
-    case 2: UpdateRandomGeneration(); break;
-    case 3: UpdateAnalysis(); break;
+    case 0: UpdateMartinAlgorithm(); break;
     default: UpdateAbout(); break;
     }
 
@@ -58,8 +55,9 @@ void Application::Update() {
 }
 
 void Application::UpdateTabs() {
-    static constexpr std::array<char const*, 4> TABS = {
-        "Enumeration", "Martin Algorithm", "Random Generation", "Analysis"
+    static constexpr std::array<char const*, 1> TABS = {
+        //"Enumeration", "Martin Algorithm", "Random Generation", "Analysis"
+        "Martin Algorithm"
     };
 
     // Separator line between tabs and content
@@ -89,10 +87,6 @@ void Application::UpdateTabs() {
     }
 }
 
-
-void Application::UpdateEnumeration() {
-
-}
 
 char buffer[200];
 
@@ -201,16 +195,6 @@ void Application::UpdateMartinAlgorithm() {
     if (_whiteconnexity == 3) _whiteconnexity = 0;
     if (_whiteconnexity == 5) _whiteconnexity = 8;
     if (_whiteconnexity == 7) _whiteconnexity = 4;
-
-
-}
-
-void Application::UpdateRandomGeneration() {
-    
-}
-
-void Application::UpdateAnalysis() {
-    
 }
 
 void Application::UpdateAbout() {

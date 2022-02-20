@@ -1,7 +1,7 @@
 #pragma once
 
 #include <raylib.h>
-#include "../MartinAlgo.hpp"
+#include "../MartinAlgoSimple.hpp"
 
 class Application {
 public:
@@ -23,19 +23,12 @@ private:
     void UpdateTabs();
     int _tabIndex = 0;
 
-    void UpdateEnumeration();
-
     // Martin algorithm step-by-step management.
     void UpdateMartinAlgorithm();
-    MartinAlgo _martin = {};
+    MartinAlgoSimple _martin = {};
     bool _showingState = true;
     int _maxLevel = 8;
     int _whiteconnexity = 0;
 
-    void UpdateRandomGeneration();
-
-    void UpdateAnalysis();
-
     void UpdateAbout();
-
 };

@@ -1,4 +1,6 @@
-/// \file common.hpp Common utilities for generating discrete figures.
+/// \file SimpleMartinAlgo.hpp Straight-forward implementation of the Martin algorithm
+/// preserving the mathematical notions presented in the research paper.
+
 #pragma once
 
 #include <array>
@@ -6,6 +8,8 @@
 #include <unordered_map>
 #include <cstdint>
 #include <stdexcept>
+#include <bitset>
+#include <cstring>
 
 
 // List of all directions.
@@ -62,9 +66,10 @@ inline bool operator==(Coordinate a, Coordinate b) noexcept {
 // This is a reasonable range, given that we can only enumerate figures
 // currently for 56 pixels.
 struct alignas(uint64_t) Candidate {
-    enum State { Free = 0, Chosen = 1, Prohibited = 2 };
+    // Note: 'Unvisited' is only used in Optimized version to provide a default state for pixels.
+    enum State : uint8_t { Free = 0, Chosen = 1, Prohibited = 2, Unvisited = 3 };
     // Conversion from state to ASCII letter.
-    static constexpr char StateLetter[] = { 'F', 'C', 'P' };
+    static constexpr char StateLetter[] = { 'F', 'C', 'P', ' ' };
 
     Coordinate coordinate;
     uint32_t k : 15, s : 2, i : 15;
@@ -77,7 +82,7 @@ static_assert(sizeof(Candidate) == 8, "Candidate is exactly 64 bits.");
 // to e.g. find candidates with a given 'k' or next free candidate.
 // In practice, it is faster and more convenient to maintain
 // additional data, at the cost of duplicating data.
-struct MartinAlgo {
+struct MartinAlgoSimple {
     // List of the candidates, as described in the research paper.
     std::vector<Candidate> candidates;
     // Indice of the next free candidate.
@@ -114,7 +119,7 @@ struct MartinAlgo {
     }
 
     // Add the next candidate, given its index in the 'candidates' list.
-    // For enumeration without white-connexity, use 'candidate_id = next_free'.
+    // For enumeration, use 'candidate_id = next_free'.
     // Pushing another candidate is equivalent to skipping push and pop operation
     // until the given candidate would be the next free candidate, meaning all
     // previous candidates are either chosen or prohibited.
@@ -152,7 +157,7 @@ struct MartinAlgo {
         // origin as being the bottom-row left-most point of the figure.
         if (coordinate.y > 0 || coordinate.y == 0 && coordinate.x >= 0) {
             auto [it, inserted] = candidate_indices.insert({coordinate, candidates.size()});
-            if (inserted) { // It was not in 'candidate_indices' before.
+            if (inserted) { // It was not itn 'candidate_indices' before.
                 candidates.push_back(
                     Candidate{ coordinate, level, Candidate::Free, 0 }
                 );
@@ -254,4 +259,3 @@ struct MartinAlgo {
         return count >= 2;
     }
 };
-
