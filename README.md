@@ -46,8 +46,36 @@ NOTE: "expected" is the OEIS data, lacking white-connexity. "0" is used when unk
               8,            2684,            2725
 ```
 
-You can also visualise which figures are rejected due to the white-connexity.
-The code is based on the optimized version, so arguments are passed at compile-time too.
+Finally, an optimized AND multithreaded vrsion is available (on a 12-cores machine,
+the measure was 8 times faster). The arguments are also passed at compile-time,
+with the extra macro `T` which is the threshold level used to split the work among threads.
+It also provides an approximate remaining time, because the "splitting" is used to approximate
+the amount of work to be done. Because outputting the progress takes some time, it must be enabled
+with the macro `SHOW_PROGRESS`.
+
+NOTE: The multithreaded version is based on the "thread_pool" library proposed by [Barak Shoshany](https://github.com/bshoshany/thread-pool) in the paper [arXiv:2105.00613](https://arxiv.org/abs/2105.00613).
+
+```
+$ g++ src/opti_mt_enumeration.cpp -o opti_mt_enumeration -O3 -DB=4 -DW=4 -DT=9 -DN=20 -DSHOW_PROGRESS
+$ ./opti_mt_enumeration
+2.65615 % (256 / 9638)
+5.31231 % (512 / 9638)
+...
+98.2776 % (9472 / 9638)
+Generation of (4,4)-connected figures (24681869833 in total) in 44.706667 s
+        (avg: 552.08 * 10^6 figures/s).
+NOTE: "expected" is the OEIS data, lacking white-connexity. "0" is used when unknown.
+              n,          result,        expected
+              1,               1,               1
+              2,               2,               2
+              3,               6,               6
+             ...           ...             ...
+             19,      4796310672,      5940738676
+             20,     18155586993,     22964779660
+```
+
+You can also visualise which figures are rejected due to the white-connexity. The code is based on the optimized version, so arguments are passed at compile-time too.
+
 ```
 $ g++ src/white_rejected.cpp -o white_rejected -O3 -DN=7 -DB=4 -DW=4
 $ ./white_rejected
