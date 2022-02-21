@@ -68,9 +68,12 @@ struct MartinAlgoOpti {
     unsigned level;
     /// The index in "candidates" array of the chosen cells, up to chosen[level].
     std::array<unsigned, N> chosen;
-    /// The index in "candidates" array which, when reached by "chosen", provokes a Pop().
-    /// Basically, chosen_last[level] provides "past-the-end" index for chosen[level].
-    std::array<unsigned, N> chosen_last;
+    /// The logical size of given "level" corresponds to the actual candidates from this level
+    /// are candidates[0 <= i < logical_sizes[level]]. This means that we must have
+    /// chosen[level] < logical_sizes[level], else we would choose a candidate which has
+    /// not be visited at this level. So instead, when chosen[level] would reach logical_sizes[level],
+    /// a Pop() is required.
+    std::array<unsigned, N> logical_sizes;
 
     /// Initializes the Martin algorithm by preparing the iteration of all figures of size N.
     /// After Init(), this structure stores the initial figure of size 1.
@@ -82,7 +85,7 @@ struct MartinAlgoOpti {
         candidates[0] = STARTING_POINT;
         level = 0;
         chosen[level] = 0;
-        chosen_last[level] = 1;
+        logical_sizes[level] = 1;
     }
 
     /// Adds a candidate to be explored for the next level, or skip it if already candidate.
@@ -91,13 +94,13 @@ struct MartinAlgoOpti {
         if (grid[pos] != Cell::Unvisited)
             return; // Already candidate or chosen
         grid[pos] = Cell::Candidate;
-        candidates[chosen_last[level+1]++] = pos;
+        candidates[logical_sizes[level+1]++] = pos;
     }
 
     /// Adds all neighbours of "center" as candidates for the next level.
     /// This cannot be used when level == N, because figures must not grow at this point.
     void AddCandidates(unsigned center) {
-        chosen_last[level+1] = chosen_last[level];
+        logical_sizes[level+1] = logical_sizes[level];
         if constexpr (B == 4) {
             AddCandidate(center + 1);
             AddCandidate(center + WIDTH);
@@ -119,7 +122,7 @@ struct MartinAlgoOpti {
     /// Adds the next candidate to the figure as a chosen cell.
     void Push() {
         // This check is required in case AddCandidates() has provided no candidates.
-        if (chosen_last[level+1] == chosen[level])
+        if (logical_sizes[level+1] == chosen[level])
             return;
         ++level;
         chosen[level] = chosen[level-1] + 1;
@@ -129,7 +132,7 @@ struct MartinAlgoOpti {
     void Pop() {
         --level;
         // Unvisit points which have been visited due to this cell.
-        for (unsigned i = chosen_last[level]; i < chosen_last[level+1]; ++i)
+        for (unsigned i = logical_sizes[level]; i < logical_sizes[level+1]; ++i)
             grid[candidates[i]] = Cell::Unvisited;
         // Unchose the removed cell.
         if constexpr (grid_behaviour == GridBehaviour::Accurate)
@@ -195,7 +198,7 @@ struct MartinAlgoOpti {
             Push();
         }
         for (;;) {
-            while (chosen[level] >= chosen_last[level]) {
+            while (chosen[level] >= logical_sizes[level]) {
                 if (level == 0)
                     return;
                 Pop();

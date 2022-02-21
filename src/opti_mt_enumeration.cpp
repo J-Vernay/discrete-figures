@@ -52,7 +52,8 @@ int main() {
     std::array<uintmax_t, martin.N + 1> result;
     result.fill(0);
 
-    std::vector<decltype(martin)> to_recurse_mt;
+    // A segment is an independent part of the enumeration which can be done in parallel.
+    std::vector<decltype(martin)> segments;
 
     auto t_begin = std::chrono::high_resolution_clock::now();
     martin.Init();
@@ -61,10 +62,10 @@ int main() {
         martin.NextStep<T_>();
         // Exploring deeper levels will be done in a thread pool.
         if (martin.level == T_ - 1)
-            to_recurse_mt.push_back(martin); 
+            segments.push_back(martin); 
     } while (martin.level > 0);
 
-    int nb_tasks = to_recurse_mt.size();
+    int nb_tasks = segments.size();
     std::atomic<int> nb_done;
     synced_stream sync_output;
     
@@ -73,7 +74,7 @@ int main() {
         std::array<uintmax_t, martin.N + 1> my_result;
         my_result.fill(0);
         for (int i = imin; i < imax; ++i) {
-            auto& martin = to_recurse_mt[i];
+            auto& martin = segments[i];
             do {
                 ++my_result[martin.level+1];
                 martin.NextStep();
