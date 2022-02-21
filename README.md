@@ -46,7 +46,7 @@ NOTE: "expected" is the OEIS data, lacking white-connexity. "0" is used when unk
               8,            2684,            2725
 ```
 
-Finally, an optimized AND multithreaded vrsion is available (on a 12-cores machine,
+Finally, an optimized and multithreaded version is available (on a 12-cores machine,
 the measure was 8 times faster). The arguments are also passed at compile-time,
 with the extra macro `T` which is the threshold level used to split the work among threads.
 It also provides an approximate remaining time, because the "splitting" is used to approximate
