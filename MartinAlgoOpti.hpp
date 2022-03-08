@@ -42,19 +42,26 @@ struct MartinAlgoOpti {
     static_assert(W == 0 || grid_behaviour == GridBehaviour::Accurate,
         "White-connexity will not work without GridBehaviour::Accurate");
 
-    static_assert(!(B == 8 && W == 8), "Connexity (8,8) not supported yet.");
+    //static_assert(!(B == 8 && W == 8), "Connexity (8,8) not supported yet.");
 
+    /// The grid requires some margin: for (4,4), (4,8) and (8,4), we require
+    /// an extra margin so that for each chosen point, we can inspect its 8 neighbours.
+    /// For (8,8), we require a double margin so we can inspect the neighbours of
+    /// the white neighbours of the figure.
+    static constexpr unsigned MARGIN =
+        (B == 8 && W == 8) ? 2 : (W != 0) ? 1 : 0;
     /// We use a grid to have direct checks when adding candidates and for white-connexity
     /// (see GridBehaviour for details). The grid is preallocated so it can store any figure
-    /// of size <= N. We chose WIDTH = 2*N+1, which, with origin being X = N, provides N cells
-    /// in both directions, ensuring borders are never reached when considering neighbours.
-    /// HEIGHT = N+2, with origin being Y = 1, because due to the origin uniqueness, the figure
-    /// cannot grow towards negative Y. Then we have N remaining cells in positive Y direction.
-    static constexpr unsigned WIDTH = 2*N+1, HEIGHT = N+2;
-    static constexpr unsigned STARTING_POINT = N + WIDTH; ///< (X = N, Y = 1)
+    /// of size <= N. We chose WIDTH = 2*N-1, which, provides N-1 cells in both direction,
+    /// plus the extra margin required to prevent out-of-bounds when accessing neighbours.
+    /// HEIGHT = N+1, with origin being Y = 1, because due to the origin uniqueness, the figure
+    /// cannot grow towards negative Y. Then we have N-1 remaining cells in positive Y direction.
+    static constexpr unsigned WIDTH  = 2 * N - 1 + 2 * MARGIN;
+    static constexpr unsigned HEIGHT = N + 1 + MARGIN;
+    static constexpr unsigned STARTING_POINT = WIDTH + WIDTH / 2; ///< (X = N, Y = 1) (+ margin)
 
     /// "Chosen" is only used with "GridBehaviour::Accurate".
-    enum Cell { Unvisited = 0, Candidate = 1, Chosen = 2 };
+    enum Cell { Unvisited = 0, Candidate = 1, Chosen = 2, INTERNAL = 3 /**< Only used internally */ };
 
     /// The actual grid. For a point whose coordinate is (x,y),
     /// its position in the array is grid[x + y * WIDTH].
@@ -78,10 +85,12 @@ struct MartinAlgoOpti {
     /// Initializes the Martin algorithm by preparing the iteration of all figures of size N.
     /// After Init(), this structure stores the initial figure of size 1.
     void Init() {
-        std::fill(grid.begin(), grid.begin() + STARTING_POINT, Cell::Candidate);
+        // Make sure the first cells are not used.
+        std::fill(grid.begin(), grid.begin() + STARTING_POINT, Cell::INTERNAL);
         grid[STARTING_POINT] = Cell::Chosen;
         std::fill(grid.begin() + STARTING_POINT + 1, grid.end(), Cell::Unvisited);
         
+        // Simulating an initial push.
         candidates[0] = STARTING_POINT;
         level = 0;
         chosen[level] = 0;
@@ -139,8 +148,31 @@ struct MartinAlgoOpti {
             grid[candidates[chosen[level]]] = Cell::Candidate;
     }
 
+    static std::array<bool, 256> generateLocalLookup() {
+        std::array<bool, 256> result;
+        for (unsigned compact = 0; compact < 256; ++compact) {
+            bool a = compact & 128, b = compact & 64, c = compact & 32, d = compact & 16;
+            bool f = compact & 8, g = compact & 4, h = compact & 2, i = compact & 1;
+            int count;
+            if constexpr (W == 4)
+                count =
+                    (f & !c) + (c & !b) + (b & !a) + (a & !d) + (d & !g) + (g & !h) + (h & !i) + (i & !f)
+                    - (!a & b & d) - (!c & b & f) - (!g & d & h) - (!i & f & h);
+            else
+                count =
+                    (f && !c) + (c && !b) + (b && !a) + (a && !d) + (d && !g) + (g && !h) + (h && !i) + (i && !f)
+                    - (a && !b && !d) - (c && !b && !f) - (g && !d && !h) - (i && !f && !h);
+            result[compact] = (count < 2);
+        }
+        return result;
+    }
+    
+    static inline auto lookupTable = generateLocalLookup();
+
     /// Checks whether the last chosen cell has broken the white-connexity or not.
-    bool IsValid() const {
+    /// This method is not const for (8,8) connexity which uses the grid for
+    /// internal processing (even if the grid is restored before the function returns).
+    bool IsValid() {
         if constexpr (W == 0)
             return true; // Always valid if white-connexity is not considered.
         unsigned pos = candidates[chosen[level]];
@@ -155,32 +187,72 @@ struct MartinAlgoOpti {
                  c = grid[pos + 1 + WIDTH] == Cell::Chosen, d = grid[pos - 1        ] == Cell::Chosen,
                  f = grid[pos + 1        ] == Cell::Chosen, g = grid[pos - 1 - WIDTH] == Cell::Chosen,
                  h = grid[pos     - WIDTH] == Cell::Chosen, i = grid[pos + 1 - WIDTH] == Cell::Chosen;
-            if constexpr (W == 4) {
-                // For each pair (F,C), (C,B), ..., (I,F), we check if it is equal to (Chosen, NotChosen).
-                // By counting the number of such pairs, we know the number of white parts after the insertion
-                // of 'c'. If it is 0 or 1, there are no white breakage. Else, we would have multiple parts.
-                // There is a special case for the corners A, C, G, I:
-                // if A is white and B and D are chosen, it means A is already connected "outside" the local context.
-                // In this case, we are not breaking "more" the local connexity, so such cases should be removed.
-                int count =
-                    (f && !c) + (c && !b) + (b && !a) + (a && !d) + (d && !g) + (g && !h) + (h && !i) + (i && !f)
-                    - (!a && b && d) - (!c && b && f) - (!g && d && h) - (!i && f && h);
-                return count < 2;
-            }
-            else { // W == 8
-                // This is the same principle as WouldBreakWhiteLocal4(), 
-                // except the handling of corners: the special case "!A && B && D" is not possible,
-                // since the corners are 8-connected to the center.
-                // However, the case "A && !B && !D" should not count, as B and D are still connected.
-                int count =
-                    (f && !c) + (c && !b) + (b && !a) + (a && !d) + (d && !g) + (g && !h) + (h && !i) + (i && !f)
-                    - (a && !b && !d) - (c && !b && !f) - (g && !d && !h) - (i && !f && !h);  
-                return count < 2;
-            }
+
+            // The different cases were already computed in "generateLocalLookup".
+            unsigned compact = a << 7 | b << 6 | c << 5 | d << 4 | f << 3 | g << 2 | h << 1 | i;
+            return lookupTable[compact];
         }
         else {
-            // (8,8)-connexity, not implemented yet...
-            return true;
+            // (8,8)-connexity
+            // The objective is to start with a white neighbour of the figure, and navigate
+            // its own white neighbours until no more white neighbour is visitable.
+            // If we have navigated over every white neighbours, then they are all connected
+            // and the white-connexity is preserved. Else, it is broken.
+            grid[pos] = Cell::Chosen;
+            // This vector will be populated by the visited white neighbours.
+            // We use Cell::Visited88 to mark white neighbours already added to this vector.
+            static thread_local std::vector<unsigned> white_neighbours;
+            white_neighbours.resize(0);
+            // We first visit the bottom neighbours to populate the white neighbours.
+            // Those are the white cells just above the initially prohibited cells
+            // due to the unicity of the starting point.
+            for (unsigned pos = STARTING_POINT+1; pos < 2*WIDTH-1; ++pos) { // "-1" to keep the margin
+                // Fortunately, in (8,8), the white-neighbours are also the candidates
+                // to be chosen next. So we only need to check whether it is a candidate
+                // (!= Cell::Unvisited), not chosen (!= Cell::Chosen), and not already
+                // visited in this function (!= Cell::Visited88), which is equivalent
+                // to check if it is equal to Cell::Candidate.
+                if (grid[pos] == Cell::Candidate) {
+                    white_neighbours.push_back(pos);
+                    grid[pos] = Cell::INTERNAL;
+                }
+            }
+            for (unsigned pos = 2*WIDTH+1; pos < 2*WIDTH+WIDTH/2+1; ++pos) {
+                if (grid[pos] == Cell::Candidate) {
+                    white_neighbours.push_back(pos);
+                    grid[pos] = Cell::INTERNAL;
+                }
+            }
+
+            // Visit all white_neighbours. Note that white_neighbours will be populated inside the loop too.
+            static constexpr int neighbour_offsets[8] = {
+                (int)-WIDTH-1, (int)-WIDTH, (int)-WIDTH+1, (int)-1, (int)+1, (int)+WIDTH-1, (int)+WIDTH, (int)+WIDTH+1
+            };
+            for (unsigned i = 0; i < white_neighbours.size(); ++i) {
+                unsigned pos = white_neighbours[i];
+                for (int offset : neighbour_offsets) {
+                    if (grid[pos+offset] == Cell::Candidate) {
+                        white_neighbours.push_back(pos+offset);
+                        grid[pos+offset] = Cell::INTERNAL;
+                    }
+                }
+            }
+            unsigned nb_visited_white_neighbours = white_neighbours.size();
+            for (unsigned pos : white_neighbours)
+                grid[pos] = Cell::Candidate; // Restore state: remove Visited88.
+            
+            // The number of white neighbours should be the number of candidates
+            // minus the number of chosen cells. If it is not, it means we have
+            // missed some white neighbours, meaning the white-connexity is broken.
+            // Note that because we do "AddCandidates()" just before "Push()",
+            // we actually are only visiting candidates of the previous level.
+            // This should not be an issue, because every candidate is accessible
+            // by two paths: "left" and "right". Chosing a point which break one
+            // of the two, will still make every candidate visited.
+            // However, if you are chosing a cell which isolate a candidate,
+            // it will still be detected.
+            grid[pos] = Cell::Candidate;
+            return nb_visited_white_neighbours >= logical_sizes[level] - (level + 1);
         }
     }
     
@@ -188,7 +260,8 @@ struct MartinAlgoOpti {
     /// \tparam MaxSize It is possible to iterate only on smaller figures too.
     template<int MaxSize = N>
     void NextStep() {
-        if (level == MaxSize-1) {
+        static constexpr int MaxLevel = std::min(MaxSize, N)-1;
+        if (level == MaxLevel) {
             if constexpr (grid_behaviour == GridBehaviour::Accurate)
                 grid[candidates[chosen[level]]] = Cell::Candidate;
             ++chosen[level];

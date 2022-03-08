@@ -6,6 +6,10 @@
 #include <chrono>
 #include <numeric>
 
+// N=18 | 1.0384s | 2006.35 Mf/s | 2083404030
+// N=18 | 3.0083s | 575.07 Mf/s  | 1729972168
+
+
 int main(int argc, char** argv) {
     if (argc >= 2 && std::strcmp(argv[1], "help") == 0) {
         printf("Usage: %s <N> <B> <W>\n", argv[0]);

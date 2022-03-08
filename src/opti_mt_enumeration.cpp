@@ -5,14 +5,14 @@
 constexpr int N_ = N;
 #undef N
 #else
-constexpr int N_ = 10;
+constexpr int N_ = 16;
 #endif
 
 #ifdef B
 constexpr int B_ = B;
 #undef B
 #else
-constexpr int B_ = 4;
+constexpr int B_ = 8;
 #endif
 
 
@@ -79,7 +79,7 @@ int main() {
                 ++my_result[martin.level+1];
                 martin.NextStep();
             } while (martin.level >= T_);
-#ifdef SHOW_PROGRESS
+#ifndef SHOW_PROGRESS
             int j = ++nb_done;
             if (j % 256 == 0)
                 sync_output.println((j * 100.f)/nb_tasks, " % (", j, " / ", nb_tasks, ")");

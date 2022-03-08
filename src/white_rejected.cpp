@@ -5,14 +5,14 @@
 constexpr int N_ = N;
 #undef N
 #else
-constexpr int N_ = 8;
+constexpr int N_ = 4;
 #endif
 
 #ifdef B
 constexpr int B_ = B;
 #undef B
 #else
-constexpr int B_ = 4;
+constexpr int B_ = 8;
 #endif
 
 
@@ -20,7 +20,7 @@ constexpr int B_ = 4;
 constexpr int W_ = W;
 #undef W
 #else
-constexpr int W_ = 4;
+constexpr int W_ = 8;
 #endif
 
 #include <cstdio>
