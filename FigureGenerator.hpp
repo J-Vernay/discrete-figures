@@ -45,7 +45,7 @@ struct FigureGenerator
 	};
 
 	// ============================================================
-	//_Bit grid used for O(1) candidates and chosen pixel presence.
+	// Bit grid used for O(1) candidates and chosen pixel presence.
 
 	struct BitGrid
 	{
@@ -89,11 +89,11 @@ struct FigureGenerator
 	// Some optional statistics, measured if bStats is true.
 
 	uint64_t statNonLeaf;  ///< Number of valid figures which have children.
-	uint64_t statLeaf;     ///<_Number of valid figures without children.
+	uint64_t statLeaf;     ///< Number of valid figures without children.
 	uint64_t statRejected; ///< Number of figures rejected by validity check.
 
 	// ============================================================
-	//_Algorithm core.
+	// Algorithm core.
 
 	void init()
 	{
@@ -114,6 +114,8 @@ struct FigureGenerator
 	template <typename Func>
 	void generate(Func&& callbackNewFigure, uint32_t nmax = Nmax)
 	{
+		if (nmax > Nmax)
+			nmax = Nmax;
 		maxLevel = nmax - 1;
 
 		while (true) {
@@ -237,7 +239,7 @@ struct FigureGenerator
 		for (uint32_t n = 0; n < 256; ++n) {
 			// a b c
 			// d   f
-			//_g h i
+			// g h i
 			bool a = (n & 1), b = (n & 2), c = (n & 4), d = (n & 8),
 			     f = (n & 16), g = (n & 32), h = (n & 64), i = (n & 128);
 
