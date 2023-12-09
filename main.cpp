@@ -7,7 +7,7 @@ int main()
 {
 	unsigned long long figureCounts[15] {};
 
-	FigureGenerator<10, 8, 4> generator;
+	FigureGenerator<13, 8, 8> generator;
 
 	generator.init();
 
