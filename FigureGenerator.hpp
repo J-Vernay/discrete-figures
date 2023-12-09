@@ -199,7 +199,7 @@ struct FigureGenerator
 	}
 
 	// ============================================================
-	//_Validity check.
+	// Validity check.
 
 	bool checkValidity()
 	{
