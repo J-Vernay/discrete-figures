@@ -4,6 +4,19 @@
 #include <stddef.h>
 #include <limits.h>
 
+// Helper to disable state storage when not needed.
+template<bool Condition, typename T>
+struct StoreIf : T {};
+
+template<typename T>
+struct StoreIf<false, T> {};
+
+struct FigureGeneratorStats {
+	uint64_t nonLeaf;  // Number of figures with children.
+	uint64_t leaf;     // Number of figures without children.
+	uint64_t rejected; //_Number of rejections by the validity check.
+};
+
 /// @tparam Nmax Maximum size of generated figures
 /// @tparam A Connectivity of chosen pixels: 4 or 8.
 /// @tparam B Connectivity of non-chosen pixels: 4, 8 or 0 to disable check.
@@ -87,19 +100,21 @@ struct FigureGenerator
 	// ============================================================
 	// Validity check state.
 
-	bool lookupTableValidity[256]; ///< Used for fast white connectivity check.
-	// The following are used only for (8,8) connectivity.
-	BitGrid gridVisit;
-	Pos visitQueue[5 * Nmax + Width + 1];
-	uint32_t visitCount;
+	struct ValidityLookup { bool table[256]; };
+	StoreIf<B != 0, ValidityLookup> validityLookup;
 
+	/// Only used for connectivity (8,8)
+	struct Visit {
+		BitGrid grid;
+		Pos queue[5 * Nmax + Width + 1];
+		uint32_t count;
+	};
+	StoreIf<A == 8 && B == 8, Visit> visit;
 
 	// ============================================================
 	// Some optional statistics, measured if bStats is true.
 
-	uint64_t statNonLeaf;  ///< Number of valid figures which have children.
-	uint64_t statLeaf;     ///< Number of valid figures without children.
-	uint64_t statRejected; ///< Number of figures rejected by validity check.
+	StoreIf<bStats, FigureGeneratorStats> stats;
 
 	// ============================================================
 	// Algorithm core.
@@ -226,46 +241,45 @@ struct FigureGenerator
 			bool g = gridChosen.get(pos + DirDownLeft);
 			bool h = gridChosen.get(pos + DirDown);
 			bool i = gridChosen.get(pos + DirDownRight);
-
 			uint8_t neighbourhood = (a << 0) | (b << 1) | (c << 2) | (d << 3)
 			                      | (f << 4) | (g << 5) | (h << 6) | (i << 7);
 
-			if constexpr (A != 8 && B != 8) {
-				return lookupTableValidity[neighbourhood];
+			if constexpr (A != 8 || B != 8) {
+				return validityLookup.table[neighbourhood];
 			}
 			else {
-				if (lookupTableValidity[neighbourhood])
+				if (validityLookup.table[neighbourhood])
 					return true;
 				// For (8,8), we cannot reject for sure with the neighbourhood.
 				// We need to do a proper graph traversal among the white pixels.
 
 				// White neighbours are candidates, except chosen pixels.
 				for (uint32_t k = 0; k < BitGrid::U64size; ++k)
-					gridVisit.u64[k] = gridCandidates.u64[k] & ~gridChosen.u64[k];
+					visit.grid.u64[k] = gridCandidates.u64[k] & ~gridChosen.u64[k];
 
 				// In gridCandidates, we also have all pos before PosOrigin.
 				// Among them, all pos before (PosOrigin + DirDownLeft) are
 				//_not necessary to visit.
 				constexpr Pos FirstVisitPos = (PosOrigin + DirDownLeft);
 				for (uint32_t k = 0; k < FirstVisitPos / 64; ++k)
-					gridVisit.u64[k] = 0;
+					visit.grid.u64[k] = 0;
 				for (Pos p = ((FirstVisitPos / 64) * 64); p <= FirstVisitPos; ++p)
-					gridVisit.reset(p);
+					visit.grid.reset(p);
 
-				visitCount = 1;
-				visitQueue[0] = FirstVisitPos;
+				visit.count = 1;
+				visit.queue[0] = FirstVisitPos;
 
 				auto funcVisit = [this] (Pos pos) {
-					if (gridVisit.get(pos)) {
-						gridVisit.reset(pos);
-						visitQueue[visitCount] = pos;
-						++visitCount;
+					if (visit.grid.get(pos)) {
+						visit.grid.reset(pos);
+						visit.queue[visit.count] = pos;
+						++visit.count;
 					}
 				};
 
-				while (visitCount > 0) {
-					--visitCount;
-					Pos p = visitQueue[visitCount];
+				while (visit.count > 0) {
+					--visit.count;
+					Pos p = visit.queue[visit.count];
 					funcVisit(p + DirRight);
 					funcVisit(p + DirUpRight);
 					funcVisit(p + DirUp);
@@ -277,7 +291,7 @@ struct FigureGenerator
 				}
 				// If there is any gridVisit pixel not visited, reject.
 				for (uint32_t k = 0; k < BitGrid::U64size; ++k)
-					if (gridVisit.u64[k])
+					if (visit.grid.u64[k])
 						return false;
 				return true;
 			}
@@ -286,30 +300,32 @@ struct FigureGenerator
 
 	void initLookupTableValidity()
 	{
-		for (uint32_t n = 0; n < 256; ++n) {
-			// a b c
-			// d   f
-			// g h i
-			bool a = (n & 1), b = (n & 2), c = (n & 4), d = (n & 8),
-			     f = (n & 16), g = (n & 32), h = (n & 64), i = (n & 128);
+		if constexpr (B != 0) {
+			for (uint32_t n = 0; n < 256; ++n) {
+				// a b c
+				// d   f
+				// g h i
+				bool a = (n & 1), b = (n & 2), c = (n & 4), d = (n & 8),
+					 f = (n & 16), g = (n & 32), h = (n & 64), i = (n & 128);
 
-			// Number of components in the loop (fcbadghif).
-			int nb = (f & !c) + (c & !b) + (b & !a) + (a & !d)
-			       + (d & !g) + (g & !h) + (h & !i) + (i & !f);
+				// Number of components in the loop (fcbadghif).
+				int nb = (f & !c) + (c & !b) + (b & !a) + (a & !d)
+					   + (d & !g) + (g & !h) + (h & !i) + (i & !f);
 
-			if constexpr (B == 8) {
-				// Remove false positives due to black (acgi) with white neighbours.
-				nb -= (a & !b & !d) + (c & !b & !f)
-				    + (g & !d & !h) + (i & !f & !h);
+				if constexpr (B == 8) {
+					// Remove false positives due to black (acgi) with white neighbours.
+					nb -= (a & !b & !d) + (c & !b & !f)
+						+ (g & !d & !h) + (i & !f & !h);
+				}
+				if constexpr (A == 8 && B == 4) {
+					// In (8,4), if (acgi) is white with black neighbours, it means
+					// (acgi) is connected to white pixels through an external white path.
+					// Thus, these disconnected cases do not invalidate the figure.
+					nb -= (!a & b & d) + (!c & b & f) + (!g & d & h) + (!i & f & h);
+				}
+
+				validityLookup.table[n] = (nb <= 1);
 			}
-			if constexpr (A == 8 && B == 4) {
-				// In (8,4), if (acgi) is white with black neighbours, it means
-				// (acgi) is connected to white pixels through an external white path.
-				// Thus, these disconnected cases do not invalidate the figure.
-				nb -= (!a & b & d) + (!c & b & f) + (!g & d & h) + (!i & f & h);
-			}
-
-			lookupTableValidity[n] = (nb <= 1);
 		}
 	}
 };

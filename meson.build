@@ -11,7 +11,10 @@ project('FigureGenerator', 'cpp',
 main = executable('main',
 	[
 		'FigureGenerator.hpp',
+		'BS_thread_pool.hpp',
 		'main.cpp',
-	]
+	],
+	# Modify this line to allow bigger figures.
+	cpp_args: [ '-DNMAX=20' ],
 )
 
