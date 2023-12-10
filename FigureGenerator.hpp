@@ -14,7 +14,7 @@ struct StoreIf<false, T> {};
 struct FigureGeneratorStats {
 	uint64_t nonLeaf;  // Number of figures with children.
 	uint64_t leaf;     // Number of figures without children.
-	uint64_t rejected; //_Number of rejections by the validity check.
+	uint64_t rejected; // Number of rejections by the validity check.
 };
 
 /// @tparam Nmax Maximum size of generated figures
@@ -95,7 +95,9 @@ struct FigureGenerator
 	Pos candidates[5 * Nmax];
 
 	BitGrid gridCandidates;
-	BitGrid gridChosen;
+
+	// Only needed for white connectivity check.
+	StoreIf<B != 0, BitGrid> gridChosen;
 
 	// ============================================================
 	// Validity check state.
@@ -129,7 +131,8 @@ struct FigureGenerator
 		for (Pos pos = 0; pos <= PosOrigin; ++pos)
 			gridCandidates.set(pos);
 		chosenIndices[0] = 0;
-		gridChosen.set(PosOrigin);
+		if constexpr (B != 0)
+			gridChosen.set(PosOrigin);
 		level = 0;
 	}
 
@@ -158,8 +161,11 @@ struct FigureGenerator
 
 	bool firstChild()
 	{
-		if (level >= maxLevel)
+		if (level >= maxLevel) {
+			if constexpr (bStats)
+				++stats.nonLeaf;
 			return false;
+		}
 		uint32_t idx = chosenIndices[level];
 		Pos pos = candidates[idx];
 
@@ -189,13 +195,19 @@ struct FigureGenerator
 			funcAddCandidate(pos + DirDown);
 			funcAddCandidate(pos + DirDownRight);
 		}
-		if (idx + 1 == count)
-			return false; // No neighbours added.
+		if (idx + 1 == count) {
+			if constexpr (bStats)
+				++stats.nonLeaf;
+			return false;
+		}
 
 		++level;
 		candidateCounts[level] = count;
 		chosenIndices[level] = idx + 1;
-		gridChosen.set(candidates[idx + 1]);
+		if constexpr (B != 0)
+			gridChosen.set(candidates[idx + 1]);
+		if constexpr (bStats)
+			++stats.leaf;
 		return true;
 	}
 
@@ -203,8 +215,10 @@ struct FigureGenerator
 	{
 		uint32_t idx = chosenIndices[level];
 		if (idx + 1 < count) {
-			gridChosen.reset(candidates[idx]);
-			gridChosen.set(candidates[idx + 1]);
+			if constexpr (B != 0) {
+				gridChosen.reset(candidates[idx]);
+				gridChosen.set(candidates[idx + 1]);
+			}
 			chosenIndices[level] = idx + 1;
 			return true;
 		}
@@ -215,7 +229,8 @@ struct FigureGenerator
 
 	void parent()
 	{
-		gridChosen.reset(candidates[chosenIndices[level]]);
+		if constexpr (B != 0)
+			gridChosen.reset(candidates[chosenIndices[level]]);
 		--level;
 		for (uint32_t idx = candidateCounts[level]; idx < count; ++idx)
 			gridCandidates.reset(candidates[idx]);
@@ -227,8 +242,9 @@ struct FigureGenerator
 
 	bool checkValidity()
 	{
+		bool bResult = false;
 		if constexpr (B == 0) {
-			return true;
+			bResult = true;
 		}
 		else {
 			// Get neighbourhood.
@@ -245,57 +261,66 @@ struct FigureGenerator
 			                      | (f << 4) | (g << 5) | (h << 6) | (i << 7);
 
 			if constexpr (A != 8 || B != 8) {
-				return validityLookup.table[neighbourhood];
+				bResult = validityLookup.table[neighbourhood];
 			}
 			else {
-				if (validityLookup.table[neighbourhood])
-					return true;
-				// For (8,8), we cannot reject for sure with the neighbourhood.
-				// We need to do a proper graph traversal among the white pixels.
-
-				// White neighbours are candidates, except chosen pixels.
-				for (uint32_t k = 0; k < BitGrid::U64size; ++k)
-					visit.grid.u64[k] = gridCandidates.u64[k] & ~gridChosen.u64[k];
-
-				// In gridCandidates, we also have all pos before PosOrigin.
-				// Among them, all pos before (PosOrigin + DirDownLeft) are
-				//_not necessary to visit.
-				constexpr Pos FirstVisitPos = (PosOrigin + DirDownLeft);
-				for (uint32_t k = 0; k < FirstVisitPos / 64; ++k)
-					visit.grid.u64[k] = 0;
-				for (Pos p = ((FirstVisitPos / 64) * 64); p <= FirstVisitPos; ++p)
-					visit.grid.reset(p);
-
-				visit.count = 1;
-				visit.queue[0] = FirstVisitPos;
-
-				auto funcVisit = [this] (Pos pos) {
-					if (visit.grid.get(pos)) {
-						visit.grid.reset(pos);
-						visit.queue[visit.count] = pos;
-						++visit.count;
-					}
-				};
-
-				while (visit.count > 0) {
-					--visit.count;
-					Pos p = visit.queue[visit.count];
-					funcVisit(p + DirRight);
-					funcVisit(p + DirUpRight);
-					funcVisit(p + DirUp);
-					funcVisit(p + DirUpLeft);
-					funcVisit(p + DirLeft);
-					funcVisit(p + DirDownLeft);
-					funcVisit(p + DirDown);
-					funcVisit(p + DirDownRight);
+				if (validityLookup.table[neighbourhood]) {
+					bResult = true;
 				}
-				// If there is any gridVisit pixel not visited, reject.
-				for (uint32_t k = 0; k < BitGrid::U64size; ++k)
-					if (visit.grid.u64[k])
-						return false;
-				return true;
+				else {
+					// For (8,8), we cannot reject for sure with the neighbourhood.
+					// We need to do a proper graph traversal among the white pixels.
+
+					// White neighbours are candidates, except chosen pixels.
+					for (uint32_t k = 0; k < BitGrid::U64size; ++k)
+						visit.grid.u64[k] = gridCandidates.u64[k] & ~gridChosen.u64[k];
+
+					// In gridCandidates, we also have all pos before PosOrigin.
+					// Among them, all pos before (PosOrigin + DirDownLeft) are
+					//_not necessary to visit.
+					constexpr Pos FirstVisitPos = (PosOrigin + DirDownLeft);
+					for (uint32_t k = 0; k < FirstVisitPos / 64; ++k)
+						visit.grid.u64[k] = 0;
+					for (Pos p = ((FirstVisitPos / 64) * 64); p <= FirstVisitPos; ++p)
+						visit.grid.reset(p);
+
+					visit.count = 1;
+					visit.queue[0] = FirstVisitPos;
+
+					auto funcVisit = [this](Pos pos) {
+						if (visit.grid.get(pos)) {
+							visit.grid.reset(pos);
+							visit.queue[visit.count] = pos;
+							++visit.count;
+						}
+						};
+
+					while (visit.count > 0) {
+						--visit.count;
+						Pos p = visit.queue[visit.count];
+						funcVisit(p + DirRight);
+						funcVisit(p + DirUpRight);
+						funcVisit(p + DirUp);
+						funcVisit(p + DirUpLeft);
+						funcVisit(p + DirLeft);
+						funcVisit(p + DirDownLeft);
+						funcVisit(p + DirDown);
+						funcVisit(p + DirDownRight);
+					}
+					// If there is any gridVisit pixel not visited, reject.
+					bResult = true;
+					for (uint32_t k = 0; k < BitGrid::U64size; ++k) {
+						if (visit.grid.u64[k]) {
+							bResult = false;
+							break;
+						}
+					}
+				}
 			}
 		}
+		if constexpr (bStats)
+			stats.rejected += !bResult;
+		return bResult;
 	}
 
 	void initLookupTableValidity()
