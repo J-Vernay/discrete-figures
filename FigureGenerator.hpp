@@ -84,10 +84,6 @@ struct FigureGenerator
 	// ============================================================
 	// State of the algorithm.
 
-	/// In case we want to iterate less deep than Nmax.
-	/// Needed for multithreaded implementation.
-	uint32_t maxLevel;
-
 	uint32_t count;
 	uint32_t level;
 	uint32_t candidateCounts[Nmax];
@@ -143,13 +139,20 @@ struct FigureGenerator
 	{
 		if (nmax > Nmax)
 			nmax = Nmax;
-		maxLevel = nmax - 1;
+		uint32_t maxLevel = nmax - 1;
 
 		while (true) {
 			while (checkValidity()) {
 				callbackNewFigure();
-				if (not firstChild())
+				// extra logic to stop iterating before.
+				if (level >= maxLevel) {
+					if constexpr (bStats)
+						++stats.nonLeaf;
 					break;
+				}
+				else if (not firstChild()) {
+					break;
+				}
 			}
 			while (not nextSibling()) {
 				if (level == 0)
@@ -159,13 +162,28 @@ struct FigureGenerator
 		}
 	}
 
+	/// Rewording of the generate() function, but a single invocation
+	/// corresponds to the code executed between two valid figures.
+	/// @retval true if current figure is valid and iteration can continue.
+	/// @retval false if we have reached end of iteration.
+	bool nextStep(uint32_t nmax = Nmax)
+	{
+		if (level < nmax - 1)
+			if (firstChild())
+				if (checkValidity())
+					return true;
+		do {
+			while (not nextSibling()) {
+				if (level == 0)
+					return false;
+				parent();
+			}
+		} while (not checkValidity());
+		return true;
+	}
+
 	bool firstChild()
 	{
-		if (level >= maxLevel) {
-			if constexpr (bStats)
-				++stats.nonLeaf;
-			return false;
-		}
 		uint32_t idx = chosenIndices[level];
 		Pos pos = candidates[idx];
 
