@@ -229,6 +229,8 @@ Result MainFunc_Multithreaded(uint32_t n)
 	BS::thread_pool pool;
 	std::mutex resMutex;
 	std::vector<FigGenerator> tasks;
+	std::atomic<size_t> tasksProgress{};
+	BS::synced_stream tasksOutput;
 	tasks.reserve(40000);
 
 	constexpr uint32_t InitialDepth = (A == 4 ? 8 : 6);
@@ -256,6 +258,9 @@ Result MainFunc_Multithreaded(uint32_t n)
 					break;
 				++my_counts[generator.level];
 			}
+			char buffer[100];
+			snprintf(buffer, 100, "\r%4zu / %zu", ++tasksProgress, tasks.size());
+			tasksOutput.print(buffer);
         }
         // Merge "my_counts" into "res.counts"
         resMutex.lock();
@@ -264,6 +269,7 @@ Result MainFunc_Multithreaded(uint32_t n)
         resMutex.unlock();
 	});
 	pool.wait_for_tasks();
+	tasksOutput.println();
 
 	timer.stop();
 	res.time_ms = timer.ms();
